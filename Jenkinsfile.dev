@@ -1,0 +1,65 @@
+pipeline {
+    agent any
+
+    triggers {
+        pollSCM('H/5 * * * *')   // optional: checks every 5 minutes
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'dev', url: 'https://github.com/Malek-slaymi/projet_devops.git'
+            }
+        }
+
+        stage('Setup') {
+            steps {
+                bat 'docker --version'
+                bat 'java -version || echo Java not installed'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                bat "docker build -t booking-app:dev-%BUILD_NUMBER% ."
+            }
+        }
+
+        stage('Run Docker Container') {
+            steps {
+                bat "docker run -d --name dev-%BUILD_NUMBER% -p 8083:80 booking-app:dev-%BUILD_NUMBER%"
+            }
+        }
+
+        stage('Smoke Test') {
+            steps {
+                bat '''
+                    echo Starting smoke test...
+                    timeout /t 10 /nobreak
+                    curl -f http://localhost:8083 || exit 1
+                    echo Smoke test passed!
+                '''
+            }
+        }
+
+        stage('Archive Artifacts') {
+            steps {
+                bat "docker logs dev-%BUILD_NUMBER% > dev-logs-%BUILD_NUMBER%.txt"
+                archiveArtifacts "dev-logs-%BUILD_NUMBER%.txt"
+            }
+        }
+    }
+
+    post {
+        always {
+            bat "docker stop dev-%BUILD_NUMBER% || echo already stopped"
+            bat "docker rm dev-%BUILD_NUMBER% || echo already removed"
+        }
+        success {
+            echo "DEV pipeline completed successfully!"
+        }
+        failure {
+            echo "DEV pipeline failed!"
+        }
+    }
+}
