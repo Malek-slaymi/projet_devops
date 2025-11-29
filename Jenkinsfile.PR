@@ -1,0 +1,61 @@
+pipeline {
+    agent any
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'test-pr', url: 'https://github.com/Malek-slaymi/projet_devops.git'
+            }
+        }
+        
+        stage('Setup') {
+            steps {
+                sh 'docker --version'
+                sh 'java -version || echo "Java not installed"'
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t booking-app:pr-${BUILD_NUMBER} .'
+            }
+        }
+        
+        stage('Run Docker Container') {
+            steps {
+                sh 'docker run -d --name test-${BUILD_NUMBER} -p 8082:80 booking-app:pr-${BUILD_NUMBER}'
+            }
+        }
+        
+        stage('Smoke Test') {
+            steps {
+                sh '''
+                    echo " Waiting for application to start..."
+                    sleep 15
+                    curl -f http://localhost:8081 || exit 1
+                    echo " Smoke test passed!"
+                '''
+            }
+        }
+        
+        stage('Archive Artifacts') {
+            steps {
+                sh 'docker logs test-${BUILD_NUMBER} > docker-logs-${BUILD_NUMBER}.txt'
+                archiveArtifacts 'docker-logs-${BUILD_NUMBER}.txt'
+            }
+        }
+    }
+    
+    post {
+        always {
+            sh 'docker stop test-${BUILD_NUMBER} || true'
+            sh 'docker rm test-${BUILD_NUMBER} || true'
+        }
+        success {
+            echo ' Pipeline PR completed successfully!'
+        }
+        failure {
+            echo ' Pipeline PR failed!'
+        }
+    }
+}
