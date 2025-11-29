@@ -21,3 +21,4 @@ If you are developing a production application, we recommend using TypeScript wi
 # projet_devops
 >>>>>>> 7ce2a21435142fe7ec713c217d4b3c660fb76321
 >>>>>>> ## React Compiler
+>>>>>>> ## React Compiler
