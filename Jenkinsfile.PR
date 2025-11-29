@@ -10,26 +10,26 @@ pipeline {
         
         stage('Setup') {
             steps {
-                sh 'docker --version'
-                sh 'java -version || echo "Java not installed"'
+                bat 'docker --version'
+                bat 'java -version || echo "Java not installed"'
             }
         }
         
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t booking-app:pr-${BUILD_NUMBER} .'
+                bat 'docker build -t booking-app:pr-${BUILD_NUMBER} .'
             }
         }
         
         stage('Run Docker Container') {
             steps {
-                sh 'docker run -d --name test-${BUILD_NUMBER} -p 8082:80 booking-app:pr-${BUILD_NUMBER}'
+                bat 'docker run -d --name test-${BUILD_NUMBER} -p 8082:80 booking-app:pr-${BUILD_NUMBER}'
             }
         }
         
         stage('Smoke Test') {
             steps {
-                sh '''
+                bat '''
                     echo " Waiting for application to start..."
                     sleep 15
                     curl -f http://localhost:8081 || exit 1
@@ -40,7 +40,7 @@ pipeline {
         
         stage('Archive Artifacts') {
             steps {
-                sh 'docker logs test-${BUILD_NUMBER} > docker-logs-${BUILD_NUMBER}.txt'
+                bat 'docker logs test-${BUILD_NUMBER} > docker-logs-${BUILD_NUMBER}.txt'
                 archiveArtifacts 'docker-logs-${BUILD_NUMBER}.txt'
             }
         }
@@ -48,8 +48,8 @@ pipeline {
     
     post {
         always {
-            sh 'docker stop test-${BUILD_NUMBER} || true'
-            sh 'docker rm test-${BUILD_NUMBER} || true'
+            bat 'docker stop test-${BUILD_NUMBER} || true'
+            bat 'docker rm test-${BUILD_NUMBER} || true'
         }
         success {
             echo ' Pipeline PR completed successfully!'
