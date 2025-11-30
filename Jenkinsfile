@@ -1,7 +1,6 @@
 pipeline {
-    agent {
-        // Exécute le pipeline dans un conteneur Node.js et monte le socket Docker 
-        // pour pouvoir lancer des commandes 'docker' (Docker-in-Docker)
+    agent any {
+       
         docker {
             image 'node:lts-slim'
             args '-v /var/run/docker.sock:/var/run/docker.sock' 
@@ -9,9 +8,9 @@ pipeline {
     }
 
     stages {
-        // =================================================================
+
         // STAGE 1 & 2: Build & Smoke Test (Pour Pull Requests / Push sur dev)
-        // =================================================================
+        
         stage('Build & Test') {
             when { 
                 // Exécuter si ce n'est PAS un tag (pour les PR et les Pushes)
@@ -48,9 +47,9 @@ pipeline {
             }
         }
         
-        // =================================================================
+        
         // STAGE 3: Build Versionné (Pour Push de Tag V.X.Y.Z)
-        // =================================================================
+      
         stage('Docker Release & Push') {
             when {
                 // S'exécuter UNIQUEMENT si un tag V.* est poussé
@@ -58,11 +57,11 @@ pipeline {
             }
             steps {
                 echo "=== Build de la version finale ${env.TAG_NAME} ==="
-                sh 'npm install'
-                sh 'npm run build'
+                bat 'npm install'
+                bat 'npm run build'
                 
                 echo '=== Dockerisation et Tagging ==='
-                sh "docker build -t mon-registry/mon-app:${env.TAG_NAME} ."
+                bat "docker build -t mon-registry/mon-app:${env.TAG_NAME} ."
                 
                 // --- AJOUTER LA LOGIQUE DE PUSH ICI UNE FOIS LES CRÉDENTIELS CONFIGURÉS ---
                 // withCredentials(...) { sh "docker push ..." }
