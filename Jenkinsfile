@@ -1,27 +1,71 @@
 pipeline {
-    agent any
+    agent {
+        // Exécute le pipeline dans un conteneur Node.js et monte le socket Docker 
+        // pour pouvoir lancer des commandes 'docker' (Docker-in-Docker)
+        docker {
+            image 'node:lts-slim'
+            args '-v /var/run/docker.sock:/var/run/docker.sock' 
+        }
+    }
+
     stages {
-        // Pipeline 1 & 2: Build & Test (PRs / Push to dev)
+        // =================================================================
+        // STAGE 1 & 2: Build & Smoke Test (Pour Pull Requests / Push sur dev)
+        // =================================================================
         stage('Build & Test') {
             when { 
-                // Exécuter si ce n'est PAS un tag (pour exclure le pipeline 3)
-                not { buildingTag() } 
+                // Exécuter si ce n'est PAS un tag (pour les PR et les Pushes)
+                not { tag 'V.*' } 
             }
             steps {
-                // ... Vos étapes de Checkout, Setup, Build, Smoke, etc.
-                echo "Running Build and Smoke Test for ${env.BRANCH_NAME}"
+                echo '=== 1. Checkout (Fait automatiquement) ==='
+                // Stage Checkout implicite
+
+                echo '=== 2. Setup (npm install) ==='
+                bat 'npm install'
+                
+                echo '=== 3. Build (npm run build) ==='
+                bat 'npm run build'
+                
+                echo '=== 4. Run (Docker Build) ==='
+                // Nécessite le Dockerfile dans le dépôt
+                bat "docker build -t react-app:${env.BUILD_NUMBER} ."
+                
+                echo '=== 5. Smoke Test ==='
+                // Lance l'application avec redirection de port
+                bat "docker run --rm -d -p 8080:80 --name test-app react-app:${env.BUILD_NUMBER}"
+                bat 'sleep 10' 
+                
+                // Test de connectivité en utilisant l'adresse de l'hôte Docker
+                bat 'curl -f http://host.docker.internal:8080 || curl -f http://172.17.0.1:8080 || exit 1' 
+                
+                // Arrêter le conteneur de test
+                bat 'docker stop test-app'
+
+                echo '=== 6. Archive Artifacts ==='
+                // Archive les fichiers de construction pour les télécharger et les vérifier
+                archiveArtifacts artifacts: 'build/**/*', fingerprint: true
             }
         }
-
-        // Pipeline 3: Build Versionné sur Tag
-        stage('Release/Versioning') {
-            when { 
-                // Exécuter si c'est un Tag (V.X.Y.Z)
+        
+        // =================================================================
+        // STAGE 3: Build Versionné (Pour Push de Tag V.X.Y.Z)
+        // =================================================================
+        stage('Docker Release & Push') {
+            when {
+                // S'exécuter UNIQUEMENT si un tag V.* est poussé
                 tag 'V.*' 
             }
             steps {
-                echo "Creating versioned build for tag ${env.TAG_NAME}"
-                // ... Vos étapes de Dockerisation et push vers un registry
+                echo "=== Build de la version finale ${env.TAG_NAME} ==="
+                sh 'npm install'
+                sh 'npm run build'
+                
+                echo '=== Dockerisation et Tagging ==='
+                sh "docker build -t mon-registry/mon-app:${env.TAG_NAME} ."
+                
+                // --- AJOUTER LA LOGIQUE DE PUSH ICI UNE FOIS LES CRÉDENTIELS CONFIGURÉS ---
+                // withCredentials(...) { sh "docker push ..." }
             }
         }
     }
